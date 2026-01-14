@@ -4,6 +4,7 @@ package routes
 import (
 	"context"
 	"net/http"
+	"strings"
 
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
@@ -20,6 +21,9 @@ import (
 	"schej.it/server/services/microsoftgraph"
 	"schej.it/server/utils"
 )
+
+// Allowed email domains for new account registration (empty = allow all)
+var allowedEmailDomains = []string{"@utexas.edu"}
 
 func InitAuth(router *gin.RouterGroup) {
 	authRouter := router.Group("/auth")
@@ -164,6 +168,21 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 	findResult := db.UsersCollection.FindOne(context.Background(), bson.M{"email": email})
 	// If user doesn't exist, create a new user
 	if findResult.Err() == mongo.ErrNoDocuments {
+		// Check if email domain is allowed for new registrations
+		if len(allowedEmailDomains) > 0 {
+			allowed := false
+			for _, domain := range allowedEmailDomains {
+				if strings.HasSuffix(strings.ToLower(email), strings.ToLower(domain)) {
+					allowed = true
+					break
+				}
+			}
+			if !allowed {
+				c.JSON(http.StatusForbidden, gin.H{"error": "Registration is restricted to approved email domains"})
+				return models.User{}
+			}
+		}
+
 		// Fetch subcalendars
 		subCalendars, err := calendar.GetCalendarProvider(calendarAccount).GetCalendarList()
 		if err == nil {
@@ -174,6 +193,9 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 		userData.CalendarAccounts = map[string]models.CalendarAccount{
 			calendarAccountKey: calendarAccount,
 		}
+
+		// Self-hosted: all users are premium by default
+		userData.IsPremium = utils.TruePtr()
 
 		// Create user
 		res, err := db.UsersCollection.InsertOne(context.Background(), userData)
@@ -210,6 +232,9 @@ func signInHelper(c *gin.Context, token auth.TokenResponse, tokenOrigin models.T
 		// Set calendar account
 		userData.CalendarAccounts = user.CalendarAccounts
 		userData.CalendarAccounts[calendarAccountKey] = calendarAccount
+
+		// Self-hosted: ensure all users are premium
+		userData.IsPremium = utils.TruePtr()
 
 		// Update user if exists
 		_, err := db.UsersCollection.UpdateByID(

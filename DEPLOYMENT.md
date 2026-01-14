@@ -19,10 +19,13 @@ cd timeful.app
 cp server/.env.template server/.env
 # Edit server/.env with your values (see Required Variables below)
 
-# 3. Build and start services
+# 3. Symlink .env for compose build args
+ln -s server/.env .env
+
+# 4. Build and start services
 docker compose up -d --build
 
-# 4. Configure Caddy
+# 5. Configure Caddy
 sudo cp Caddyfile.example /etc/caddy/Caddyfile
 # Edit /etc/caddy/Caddyfile with your domain
 sudo systemctl reload caddy
@@ -93,9 +96,10 @@ Create `server/.env` with the following:
 
 | Variable | Description |
 |----------|-------------|
-| `CLIENT_ID` | Google OAuth client ID |
+| `CLIENT_ID` | Google OAuth client ID (used by both backend and frontend build) |
 | `CLIENT_SECRET` | Google OAuth client secret |
 | `ENCRYPTION_KEY` | Key for encrypting sensitive data (32-character random string) |
+| `BASE_URL` | Your deployment URL (e.g., `https://timeful.example.com`) |
 
 ### Optional - Payments
 
