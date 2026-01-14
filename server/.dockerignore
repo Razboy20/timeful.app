@@ -1,0 +1,30 @@
+# Dependencies
+vendor/
+
+# Build outputs
+server
+*.exe
+
+# Environment files
+.env
+.env.*
+!.env.template
+
+# Logs
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Documentation
+docs/swagger.json
+docs/swagger.yaml
+docs/docs.go

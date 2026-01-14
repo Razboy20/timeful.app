@@ -12,7 +12,6 @@ import (
 	"regexp"
 	"time"
 
-	"github.com/gin-contrib/cors"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-contrib/sessions/cookie"
 	"github.com/gin-gonic/gin"
@@ -87,14 +86,14 @@ func main() {
 	router.Use(gin.Recovery())
 
 	// Cors
-	router.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:8080", "https://www.schej.it", "https://schej.it", "https://www.timeful.app", "https://timeful.app"},
-		AllowMethods:     []string{"GET", "POST", "PATCH", "PUT", "DELETE"},
-		AllowHeaders:     []string{"Content-Type"},
-		ExposeHeaders:    []string{"Content-Length"},
-		AllowCredentials: true,
-		MaxAge:           12 * time.Hour,
-	}))
+	// router.Use(cors.New(cors.Config{
+	// 	AllowOrigins:     []string{"http://localhost:8080", "https://www.schej.it", "https://schej.it", "https://www.timeful.app", "https://timeful.app"},
+	// 	AllowMethods:     []string{"GET", "POST", "PATCH", "PUT", "DELETE"},
+	// 	AllowHeaders:     []string{"Content-Type"},
+	// 	ExposeHeaders:    []string{"Content-Length"},
+	// 	AllowCredentials: true,
+	// 	MaxAge:           12 * time.Hour,
+	// }))
 
 	// Init database
 	closeConnection := db.Init()
@@ -164,7 +163,7 @@ func noRouteHandler() gin.HandlerFunc {
 			event := db.GetEventByEitherId(eventId)
 
 			if event != nil {
-				title := fmt.Sprintf("%s - Timeful (formerly Schej)", event.Name)
+				title := fmt.Sprintf("%s - Timeful", event.Name)
 				params = gin.H{
 					"title":   title,
 					"ogTitle": title,
