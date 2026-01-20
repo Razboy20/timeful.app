@@ -42,4 +42,7 @@ Built with [Vue 2](https://github.com/vuejs/vue), [MongoDB](https://github.com/m
 
 ## Self-hosting
 
-Coming soon...
+Razboy20: Added compose.yaml as a self hosting option.
+
+Todo:
+- Fix frontend volume not updating by new frontend changes (need to run `docker compose down --volumes`)
