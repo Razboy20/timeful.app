@@ -1,14 +1,22 @@
 <template>
-  <div v-if="event" class="tw-h-full">
-    <NotSignedIn v-if="!authUser" :event="event" />
-    <AccessDenied v-else-if="accessDenied" />
-    <Event
-      v-else
-      :eventId="groupId"
-      :fromSignIn="fromSignIn"
-      :initialTimezone="initialTimezone"
-      :contactsPayload="contactsPayload"
-    ></Event>
+  <div class="tw-h-full">
+    <div
+      v-if="loading"
+      class="tw-flex tw-h-full tw-items-center tw-justify-center"
+    >
+      <v-progress-circular indeterminate color="primary" />
+    </div>
+    <div v-else-if="event" class="tw-h-full">
+      <NotSignedIn v-if="!authUser" :event="event" />
+      <AccessDenied v-else-if="accessDenied" />
+      <Event
+        v-else
+        :eventId="groupId"
+        :fromSignIn="fromSignIn"
+        :initialTimezone="initialTimezone"
+        :contactsPayload="contactsPayload"
+      ></Event>
+    </div>
   </div>
 </template>
 
@@ -38,6 +46,7 @@ export default {
 
   data() {
     return {
+      loading: true,
       event: null,
     }
   },
@@ -54,7 +63,9 @@ export default {
 
       let found = false
       for (const attendee of attendees) {
-        if (attendee.email.toLowerCase() === this.authUser.email.toLowerCase()) {
+        if (
+          attendee.email.toLowerCase() === this.authUser.email.toLowerCase()
+        ) {
           // The line below is commented out because we want attendee to be able to rejoin group after declining
           // if (attendee.declined) return true
 
@@ -94,6 +105,8 @@ export default {
           this.$router.replace({ name: "home" })
           return
       }
+    } finally {
+      this.loading = false
     }
   },
 }

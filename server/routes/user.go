@@ -25,6 +25,10 @@ import (
 )
 
 func InitUser(router *gin.RouterGroup) {
+	// Public user routes (no auth required)
+	usersRouter := router.Group("/users")
+	usersRouter.GET("/:userId", getPublicUser)
+
 	userRouter := router.Group("/user")
 	userRouter.Use(middleware.AuthRequired())
 
@@ -42,6 +46,31 @@ func InitUser(router *gin.RouterGroup) {
 	userRouter.POST("/toggle-sub-calendar", toggleSubCalendar)
 	userRouter.GET("/searchContacts", searchContacts)
 	userRouter.DELETE("", deleteUser)
+}
+
+// @Summary Gets a user's public profile by ID
+// @Tags users
+// @Produce json
+// @Param userId path string true "The user's ID"
+// @Success 200 {object} object{_id=string,firstName=string,lastName=string,picture=string,email=string}
+// @Failure 404 {object} responses.Error
+// @Router /users/{userId} [get]
+func getPublicUser(c *gin.Context) {
+	userId := c.Param("userId")
+
+	user := db.GetUserById(userId)
+	if user == nil {
+		c.JSON(http.StatusNotFound, responses.Error{Error: errs.UserDoesNotExist})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"_id":       user.Id,
+		"firstName": user.FirstName,
+		"lastName":  user.LastName,
+		"picture":   user.Picture,
+		"email":     user.Email,
+	})
 }
 
 // @Summary Gets the user's profile
