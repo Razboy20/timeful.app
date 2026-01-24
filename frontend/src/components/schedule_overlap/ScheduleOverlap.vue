@@ -802,7 +802,7 @@
                   :curRespondent="curRespondent"
                   :curRespondents="curRespondents"
                   :curTimeslot="curTimeslot"
-                  :curTimeslotAvailability="curTimeslotAvailability"
+                  :curTimeslotAvailableSet="curTimeslotAvailableSet"
                   :respondents="respondents"
                   :parsedResponses="parsedResponses"
                   :isOwner="isOwner"
@@ -922,7 +922,7 @@
                   :curRespondent="curRespondent"
                   :curRespondents="curRespondents"
                   :curTimeslot="curTimeslot"
-                  :curTimeslotAvailability="curTimeslotAvailability"
+                  :curTimeslotAvailableSet="curTimeslotAvailableSet"
                   :respondents="respondents"
                   :parsedResponses="parsedResponses"
                   :isOwner="isOwner"
@@ -1106,11 +1106,12 @@ export default {
       unsavedChanges: false, // If there are unsaved availability changes
       curTimeslot: { row: -1, col: -1 }, // The currently highlighted timeslot
       timeslotSelected: false, // Whether a timeslot is selected (used to persist selection on desktop)
-      curTimeslotAvailability: {}, // The users available for the current timeslot
+      curTimeslotAvailableSet: null, // Set of user IDs available for current timeslot (null = all)
       curRespondent: "", // Id of the active respondent (set on hover)
       curRespondents: [], // Id of currently selected respondents (set on click)
       sharedCalendarAccounts: {}, // The user's calendar accounts for changing calendar options for groups
       fetchedResponses: {}, // Responses fetched from the server for the dates currently shown
+      _parsedResponsesCache: new Map(), // Cache for parsed availability/ifNeeded Sets
       loadingResponses: { loading: false, lastFetched: new Date().getTime() }, // Whether we're currently fetching the responses
       responsesFormatted: new Map(), // Map where date/time is mapped to the people that are available then
       tooltipContent: "", // The content of the tooltip
@@ -1381,10 +1382,12 @@ export default {
       let max = 0
       if (this.event.daysOnly) {
         for (const day of this.allDays) {
-          const num = [
-            ...(this.responsesFormatted.get(day.dateObject.getTime()) ??
-              new Set()),
-          ].filter((r) => this.curRespondentsSet.has(r)).length
+          const respondents =
+            this.responsesFormatted.get(day.dateObject.getTime()) ?? new Set()
+          let num = 0
+          for (const r of respondents) {
+            if (this.curRespondentsSet.has(r)) num++
+          }
 
           if (num > max) max = num
         }
@@ -1392,9 +1395,14 @@ export default {
         for (let i = 0; i < this.event.dates.length; i++) {
           const date = new Date(this.event.dates[i])
           for (const time of this.times) {
-            const num = [
-              ...this.getRespondentsForHoursOffset(date, time.hoursOffset),
-            ].filter((r) => this.curRespondentsSet.has(r)).length
+            const respondents = this.getRespondentsForHoursOffset(
+              date,
+              time.hoursOffset
+            )
+            let num = 0
+            for (const r of respondents) {
+              if (this.curRespondentsSet.has(r)) num++
+            }
 
             if (num > max) max = num
           }
@@ -1783,16 +1791,8 @@ export default {
           }
           parsed[userId] = {
             ...this.event.responses[userId],
-            availability: new Set(
-              this.fetchedResponses[userId]?.availability?.map((a) =>
-                new Date(a).getTime()
-              )
-            ),
-            ifNeeded: new Set(
-              this.fetchedResponses[userId]?.ifNeeded?.map((a) =>
-                new Date(a).getTime()
-              )
-            ),
+            availability: this.getCachedResponseSet(userId, "availability"),
+            ifNeeded: this.getCachedResponseSet(userId, "ifNeeded"),
             user: user,
           }
         }
@@ -1807,16 +1807,8 @@ export default {
         }
         parsed[k] = {
           ...this.event.responses[k],
-          availability: new Set(
-            this.fetchedResponses[k]?.availability?.map((a) =>
-              new Date(a).getTime()
-            )
-          ),
-          ifNeeded: new Set(
-            this.fetchedResponses[k]?.ifNeeded?.map((a) =>
-              new Date(a).getTime()
-            )
-          ),
+          availability: this.getCachedResponseSet(k, "availability"),
+          ifNeeded: this.getCachedResponseSet(k, "ifNeeded"),
           user: newUser,
         }
       }
@@ -2278,6 +2270,21 @@ export default {
     ...mapMutations(["setAuthUser"]),
     ...mapActions(["showInfo", "showError", "showUpgradeDialog"]),
 
+    getCachedResponseSet(userId, type) {
+      const sourceArray = this.fetchedResponses[userId]?.[type]
+      const cacheKey = `${userId}:${type}`
+      const cached = this._parsedResponsesCache.get(cacheKey)
+
+      if (cached && cached.sourceRef === sourceArray) return cached.set
+
+      const newSet = new Set(sourceArray?.map((a) => new Date(a).getTime()))
+      this._parsedResponsesCache.set(cacheKey, {
+        sourceRef: sourceArray,
+        set: newSet,
+      })
+      return newSet
+    },
+
     // -----------------------------------
     //#region Date
     // -----------------------------------
@@ -2572,15 +2579,8 @@ export default {
       const date = this.getDateFromRowCol(row, col)
       if (!date) return
 
-      // Update current timeslot availability to show who is available for the given timeslot
-      const available = this.responsesFormatted.get(date.getTime()) ?? new Set()
-      for (const respondent of this.respondents) {
-        if (available.has(respondent._id)) {
-          this.curTimeslotAvailability[respondent._id] = true
-        } else {
-          this.curTimeslotAvailability[respondent._id] = false
-        }
-      }
+      this.curTimeslotAvailableSet =
+        this.responsesFormatted.get(date.getTime()) ?? new Set()
     },
     //#endregion
 
@@ -3164,9 +3164,10 @@ export default {
           numRespondents = timeslotRespondents.size
           max = this.max
         } else if (this.state === this.states.SUBSET_AVAILABILITY) {
-          numRespondents = [...timeslotRespondents].filter((r) =>
-            this.curRespondentsSet.has(r)
-          ).length
+          numRespondents = 0
+          for (const r of timeslotRespondents) {
+            if (this.curRespondentsSet.has(r)) numRespondents++
+          }
 
           max = this.curRespondentsMax
         } else if (this.overlayAvailability) {
@@ -3392,10 +3393,7 @@ export default {
       // Only reset cur timeslot if it isn't being persisted
       if (this.timeslotSelected) return
 
-      this.curTimeslotAvailability = {}
-      for (const respondent of this.respondents) {
-        this.curTimeslotAvailability[respondent._id] = true
-      }
+      this.curTimeslotAvailableSet = null
       this.curTimeslot = { row: -1, col: -1 }
 
       // End drag if mouse left time grid
@@ -3468,7 +3466,8 @@ export default {
         this.$emit("setCurGuestId", newName)
         this.refreshEvent()
       } catch (err) {
-        const errorMessage = err.parsed?.error || err.message || "Failed to update guest name"
+        const errorMessage =
+          err.parsed?.error || err.message || "Failed to update guest name"
         this.showError(errorMessage)
       }
     },
@@ -4369,10 +4368,7 @@ export default {
     respondents: {
       immediate: true,
       handler() {
-        this.curTimeslotAvailability = {}
-        for (const respondent of this.respondents) {
-          this.curTimeslotAvailability[respondent._id] = true
-        }
+        this.curTimeslotAvailableSet = null
       },
     },
     calendarEventsByDay(val, oldVal) {

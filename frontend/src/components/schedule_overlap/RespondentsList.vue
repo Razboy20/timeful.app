@@ -445,7 +445,7 @@ export default {
     curRespondent: { type: String, required: true },
     curRespondents: { type: Array, required: true },
     curTimeslot: { type: Object, required: true },
-    curTimeslotAvailability: { type: Object, required: true },
+    curTimeslotAvailableSet: { type: Set, default: null },
     respondents: { type: Array, required: true },
     parsedResponses: { type: Object, required: true },
     isOwner: { type: Boolean, required: true },
@@ -508,21 +508,15 @@ export default {
     },
     numUsersAvailable() {
       this.curTimeslot
-      let numUsers = 0
-      for (const key in this.curTimeslotAvailability) {
-        if (this.curTimeslotAvailability[key]) numUsers++
-      }
-      return numUsers
+      if (this.curTimeslotAvailableSet === null) return this.respondents.length
+      return this.curTimeslotAvailableSet.size
     },
     numCurRespondentsAvailable() {
       this.curTimeslot
+      if (this.curTimeslotAvailableSet === null) return this.curRespondents.length
       let numUsers = 0
-      for (const key in this.curTimeslotAvailability) {
-        if (
-          this.curTimeslotAvailability[key] &&
-          this.curRespondentsSet.has(key)
-        )
-          numUsers++
+      for (const id of this.curRespondents) {
+        if (this.curTimeslotAvailableSet.has(id)) numUsers++
       }
       return numUsers
     },
@@ -613,7 +607,10 @@ export default {
         c.push("tw-bg-yellow")
       }
 
-      if (!this.curTimeslotAvailability[id]) {
+      const isAvailable =
+        this.curTimeslotAvailableSet === null ||
+        this.curTimeslotAvailableSet.has(id)
+      if (!isAvailable) {
         c.push("tw-line-through")
         c.push("tw-text-gray")
       }
