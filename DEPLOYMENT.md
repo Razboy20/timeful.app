@@ -1,3 +1,6 @@
+> [!note]
+> Deployment guide is LLM written, use only as advice, not as a definitive guide.
+
 # Timeful Deployment Guide
 
 Production deployment using Docker Compose behind Caddy reverse proxy.

@@ -10,6 +10,19 @@ import (
 	"schej.it/server/responses"
 )
 
+func AuthOptional() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		session := sessions.Default(c)
+		userId := session.Get("userId")
+		if userId != nil {
+			if user := db.GetUserById(userId.(string)); user != nil {
+				c.Set("authUser", user)
+			}
+		}
+		c.Next()
+	}
+}
+
 func AuthRequired() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		// Check if userId is set

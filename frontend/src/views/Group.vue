@@ -7,15 +7,14 @@
       <v-progress-circular indeterminate color="primary" />
     </div>
     <div v-else-if="event" class="tw-h-full">
-      <NotSignedIn v-if="!authUser" :event="event" />
-      <AccessDenied v-else-if="accessDenied" />
+      <AccessDenied v-if="authUser && accessDenied" />
       <Event
         v-else
         :eventId="groupId"
         :fromSignIn="fromSignIn"
         :initialTimezone="initialTimezone"
         :contactsPayload="contactsPayload"
-      ></Event>
+      />
     </div>
   </div>
 </template>
@@ -26,7 +25,6 @@ import { mapActions, mapState } from "vuex"
 import { get } from "@/utils"
 import { errors, eventTypes } from "@/constants"
 import AccessDenied from "@/components/groups/AccessDenied.vue"
-import NotSignedIn from "@/components/groups/NotSignedIn.vue"
 
 export default {
   name: "Group",
@@ -41,7 +39,6 @@ export default {
   components: {
     AccessDenied,
     Event,
-    NotSignedIn,
   },
 
   data() {

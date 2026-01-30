@@ -185,7 +185,7 @@
                 </v-btn>
               </div>
               <div
-                v-if="!isPhone && (!isSignUp || canEdit)"
+                v-if="!isPhone && (!isSignUp || canEdit) && (!isGroup || authUser)"
                 class="tw-flex tw-w-40"
               >
                 <template v-if="!isEditing">
@@ -314,7 +314,7 @@
       <div class="tw-h-8"></div>
       <!-- Bottom bar for phones -->
       <div
-        v-if="!isSettingSpecificTimes && isPhone && (!isSignUp || canEdit)"
+        v-if="!isSettingSpecificTimes && isPhone && (!isSignUp || canEdit) && (!isGroup || authUser)"
         class="tw-fixed tw-bottom-0 tw-z-20 tw-flex tw-h-16 tw-w-full tw-items-center tw-px-4"
         :class="`${isIOS ? 'tw-pb-2' : ''} ${
           isScheduling ? 'tw-bg-blue' : 'tw-bg-green'

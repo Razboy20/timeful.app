@@ -1309,7 +1309,7 @@ export default {
 
       const userIdToEventsByDay = {}
       for (const userId in this.event.responses) {
-        if (userId === this.authUser._id) {
+        if (userId === this.authUser?._id) {
           userIdToEventsByDay[userId] = this.calendarEventsByDay
         } else if (userId in this.calendarAvailabilities) {
           userIdToEventsByDay[userId] = splitTimeBlocksByDay(
@@ -1746,7 +1746,7 @@ export default {
               this.fetchedResponses[userId]?.manualAvailability
             )
             const curManualAvailability =
-              userId === this.authUser._id
+              userId === this.authUser?._id
                 ? this.getManualAvailabilityDow(this.manualAvailability)
                 : {}
 
@@ -1758,7 +1758,7 @@ export default {
               fetchedManualAvailability: fetchedManualAvailability ?? {},
               curManualAvailability: curManualAvailability ?? {},
               calendarOptions:
-                userId === this.authUser._id
+                userId === this.authUser?._id
                   ? {
                       bufferTime: this.bufferTime,
                       workingHours: this.workingHours,

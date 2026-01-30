@@ -35,7 +35,7 @@ func InitEvents(router *gin.RouterGroup) {
 	eventRouter.POST("/:eventId/rename-user", renameUser)
 	eventRouter.POST("/:eventId/responded", userResponded)
 	eventRouter.POST("/:eventId/decline", middleware.AuthRequired(), declineInvite)
-	eventRouter.GET("/:eventId/calendar-availabilities", middleware.AuthRequired(), getCalendarAvailabilities)
+	eventRouter.GET("/:eventId/calendar-availabilities", middleware.AuthOptional(), getCalendarAvailabilities)
 	eventRouter.DELETE("/:eventId", middleware.AuthRequired(), deleteEvent)
 	eventRouter.POST("/:eventId/duplicate", middleware.AuthRequired(), duplicateEvent)
 	eventRouter.POST("/:eventId/archive", middleware.AuthRequired(), archiveEvent)
@@ -1213,7 +1213,10 @@ func getCalendarAvailabilities(c *gin.Context) {
 	}
 
 	// Filter and format calendar events
-	authUser := utils.GetAuthUser(c)
+	var authUserId string
+	if userInterface, exists := c.Get("authUser"); exists {
+		authUserId = userInterface.(*models.User).Id.Hex()
+	}
 	for userId, calendarEvents := range userIdToCalendarEvents {
 		// Find the corresponding response
 		_, eventResponse := findResponse(eventResponses, userId)
@@ -1236,8 +1239,8 @@ func getCalendarAvailabilities(c *gin.Context) {
 				continue
 			}
 
-			// Redact event names of other users
-			if authUser.Id.Hex() != userId {
+			// Redact event names for anonymous users and other users' events
+			if authUserId != userId {
 				calendarEvent.Summary = "BUSY"
 			}
 
