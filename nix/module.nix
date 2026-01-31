@@ -113,6 +113,10 @@ in
 
     virtualisation.podman.enable = true;
 
+    systemd.services.podman-timeful-mongo.preStart = ''
+      mkdir -p ${cfg.dataDir}/mongo
+    '';
+
     # Go server as a native systemd service
     systemd.services.timeful = {
       description = "Timeful scheduling server";

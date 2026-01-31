@@ -1111,7 +1111,7 @@ export default {
       curRespondents: [], // Id of currently selected respondents (set on click)
       sharedCalendarAccounts: {}, // The user's calendar accounts for changing calendar options for groups
       fetchedResponses: {}, // Responses fetched from the server for the dates currently shown
-      _parsedResponsesCache: new Map(), // Cache for parsed availability/ifNeeded Sets
+      parsedResponsesCache: new Map(), // Cache for parsed availability/ifNeeded Sets
       loadingResponses: { loading: false, lastFetched: new Date().getTime() }, // Whether we're currently fetching the responses
       responsesFormatted: new Map(), // Map where date/time is mapped to the people that are available then
       tooltipContent: "", // The content of the tooltip
@@ -2273,12 +2273,12 @@ export default {
     getCachedResponseSet(userId, type) {
       const sourceArray = this.fetchedResponses[userId]?.[type]
       const cacheKey = `${userId}:${type}`
-      const cached = this._parsedResponsesCache.get(cacheKey)
+      const cached = this.parsedResponsesCache.get(cacheKey)
 
       if (cached && cached.sourceRef === sourceArray) return cached.set
 
       const newSet = new Set(sourceArray?.map((a) => new Date(a).getTime()))
-      this._parsedResponsesCache.set(cacheKey, {
+      this.parsedResponsesCache.set(cacheKey, {
         sourceRef: sourceArray,
         set: newSet,
       })
