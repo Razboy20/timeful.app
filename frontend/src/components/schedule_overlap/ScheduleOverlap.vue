@@ -287,9 +287,7 @@
                                     ]?.style
                                   "
                                   :data-ts-idx="
-                                    d * times.length +
-                                      t +
-                                      splitTimes[0].length
+                                    d * times.length + t + splitTimes[0].length
                                   "
                                   v-on="
                                     frozenTimeslotVon[
@@ -3411,11 +3409,14 @@ export default {
               if (!this.event.daysOnly) {
                 const date = this.getDateFromRowCol(row, col)
                 if (date) {
+                  // Debug logging for hover slot
+
                   date.setTime(date.getTime() - this.timezoneOffset * 60 * 1000)
                   const startDate = dayjs(date).utc()
                   const endDate = dayjs(date)
                     .utc()
                     .add(this.timeslotDuration, "minutes")
+
                   const timeFormat =
                     this.timeType === timeTypes.HOUR12 ? "h:mm A" : "HH:mm"
                   let dateFormat
@@ -3450,6 +3451,37 @@ export default {
 
       // End drag if mouse left time grid
       this.endDrag()
+    },
+    getAllValidTimeRanges() {
+      const timeSlotToRowCol = new Map()
+
+      if (this.event.daysOnly) {
+        return timeSlotToRowCol
+      }
+
+      for (let col = 0; col < this.days.length; col++) {
+        for (let row = 0; row < this.times.length; row++) {
+          const date = this.getDateFromRowCol(row, col)
+          if (!date) continue
+
+          const startDate = dayjs(date).utc()
+          const endDate = dayjs(date)
+            .utc()
+            .add(this.timeslotDuration, "minutes")
+
+          const startTime = new Date(startDate.valueOf())
+          const endTime = new Date(endDate.valueOf())
+
+          timeSlotToRowCol.set(startTime.getTime(), {
+            row,
+            col,
+            startTime,
+            endTime,
+          })
+        }
+      }
+
+      return timeSlotToRowCol
     },
     //#endregion
 

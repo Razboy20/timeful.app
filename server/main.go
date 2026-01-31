@@ -104,7 +104,7 @@ func main() {
 	defer closeTasks()
 
 	// Session
-	store := cookie.NewStore([]byte("secret"))
+	store := cookie.NewStore([]byte(os.Getenv("SESSION_SECRET")))
 	router.Use(sessions.Sessions("session", store))
 
 	// Init routes
@@ -155,7 +155,11 @@ func main() {
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerfiles.Handler))
 
 	// Run server
-	router.Run(":3002")
+	if os.Getenv("NODE_ENV") == "staging" {
+		router.Run(":3003")
+	} else {
+		router.Run(":3002")
+	}
 }
 
 // Load .env variables
@@ -168,6 +172,23 @@ func loadDotEnv() {
 
 	// Load stripe key
 	stripe.Key = os.Getenv("STRIPE_API_KEY")
+
+	// Validate session secret
+	validateSessionSecret()
+}
+
+// validateSessionSecret ensures SESSION_SECRET is set and meets security requirements
+func validateSessionSecret() {
+	secret := os.Getenv("SESSION_SECRET")
+
+	if secret == "" {
+		logger.StdErr.Panicln("SESSION_SECRET environment variable is required but not set")
+	}
+
+	// Minimum 32 characters for adequate security (256 bits)
+	if len(secret) < 32 {
+		logger.StdErr.Panicln("SESSION_SECRET must be at least 32 characters long")
+	}
 }
 
 func noRouteHandler() gin.HandlerFunc {
