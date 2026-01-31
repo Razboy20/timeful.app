@@ -1,8 +1,8 @@
 <template></template>
 
 <script>
-import { get, post, getEventsCreated, deleteEventsCreated } from "@/utils"
-import { mapMutations } from "vuex"
+import { get, post } from "@/utils"
+import { mapMutations, mapActions } from "vuex"
 import { authTypes, calendarTypes } from "@/constants"
 
 export default {
@@ -10,6 +10,7 @@ export default {
 
   methods: {
     ...mapMutations(["setAuthUser"]),
+    ...mapActions(["showError"]),
   },
 
   async created() {
@@ -40,9 +41,7 @@ export default {
           scope: scope ?? state.scope,
           calendarType: state.calendarType,
           timezoneOffset: new Date().getTimezoneOffset(),
-          eventsToLink: getEventsCreated(),
         })
-        deleteEventsCreated()
 
         this.setAuthUser(user)
 
@@ -139,6 +138,10 @@ export default {
       }
     } catch (err) {
       console.error(err)
+      const message =
+        err.parsed?.error || "Sign in failed. Please try again."
+      this.showError(message)
+      this.$router.replace({ name: "landing" })
     }
   },
 }

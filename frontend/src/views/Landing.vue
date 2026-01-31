@@ -76,18 +76,12 @@
           <v-btn
             class="tw-block tw-self-center tw-rounded-lg tw-bg-green tw-px-10 tw-text-base sm:tw-px-10 lg:tw-px-12"
             dark
-            @click="authUser ? openDashboard() : (newDialog = true)"
+            @click="authUser ? openDashboard() : signIn()"
             large
             :x-large="$vuetify.breakpoint.mdAndUp"
           >
-            {{ authUser ? "Open dashboard" : "Create event" }}
+            {{ authUser ? "Open dashboard" : "Get started" }}
           </v-btn>
-          <div
-            v-if="!authUser"
-            class="tw-text-center tw-text-xs tw-text-dark-gray sm:tw-text-sm"
-          >
-            It's free! No login required.
-          </div>
         </div>
         <div class="tw-relative tw-w-full">
           <!-- Green background -->
@@ -258,9 +252,6 @@
     <!-- Sign in dialog -->
     <SignInDialog v-model="signInDialog" @signIn="_signIn" />
 
-    <!-- New event dialog -->
-    <NewDialog v-model="newDialog" no-tabs @signIn="signIn" />
-
     <!-- Add the dialog component -->
     <HowItWorksDialog
       v-if="showHowItWorksDialog"
@@ -289,8 +280,6 @@ import { isPhone, signInGoogle, signInOutlook } from "@/utils"
 import FAQ from "@/components/FAQ.vue"
 import Header from "@/components/Header.vue"
 import NumberBullet from "@/components/NumberBullet.vue"
-import NewEvent from "@/components/NewEvent.vue"
-import NewDialog from "@/components/NewDialog.vue"
 import LandingPageHeader from "@/components/landing/LandingPageHeader.vue"
 import Logo from "@/components/Logo.vue"
 import GithubButton from "vue-github-button"
@@ -315,8 +304,6 @@ export default {
     FAQ,
     Header,
     NumberBullet,
-    NewEvent,
-    NewDialog,
     LandingPageHeader,
     GithubButton,
     Logo,
@@ -330,7 +317,6 @@ export default {
 
   data: () => ({
     signInDialog: false,
-    newDialog: false,
     githubSnackbar: true,
     howItWorksSteps: [
       "Create a Timeful event",

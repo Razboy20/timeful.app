@@ -466,7 +466,6 @@ import {
   signInGoogle,
   getDateWithTimezone,
   getTimeOptions,
-  addEventToCreatedList,
   prefersStartOnMonday,
 } from "@/utils"
 import { mapActions, mapState } from "vuex"
@@ -765,9 +764,7 @@ export default {
         // Create new event on backend
         post("/events", payload)
           .then(async ({ eventId, shortId }) => {
-            if (this.authUser) {
-              await this.setEventFolder({ eventId, folderId: this.folderId })
-            }
+            await this.setEventFolder({ eventId, folderId: this.folderId })
             this.$router.push({
               name: "event",
               params: {
@@ -781,11 +778,6 @@ export default {
 
             posthogPayload.eventId = eventId
             this.$posthog?.capture("Event created", posthogPayload)
-
-            if (!this.authUser) {
-              // Add eventId to localStorage, so the user can claim it later
-              addEventToCreatedList(eventId)
-            }
           })
           .catch((err) => {
             this.showError(

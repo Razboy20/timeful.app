@@ -77,7 +77,7 @@ Add Timeful as a flake input and import the module:
     enable = true;
     domain = "timeful.example.com";
     envFile = "/var/lib/timeful/.env";
-    # Optional: bake OAuth client IDs into the frontend build
+    # Required: bake OAuth client IDs into the frontend build if the respective OAuth is enabled
     # googleClientId = "your-google-client-id";
     # microsoftClientId = "your-microsoft-client-id";
   };

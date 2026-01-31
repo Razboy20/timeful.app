@@ -26,7 +26,7 @@ import (
 func InitEvents(router *gin.RouterGroup) {
 	eventRouter := router.Group("/events")
 
-	eventRouter.POST("", createEvent)
+	eventRouter.POST("", middleware.AuthRequired(), createEvent)
 	eventRouter.PUT("/:eventId", editEvent)
 	eventRouter.GET("/:eventId", getEvent)
 	eventRouter.GET("/:eventId/responses", getResponses)
@@ -85,19 +85,9 @@ func createEvent(c *gin.Context) {
 		fmt.Println(err)
 		return
 	}
-	session := sessions.Default(c)
-
-	// If user logged in, set owner id to their user id, otherwise set owner id to nil
-	userIdInterface := session.Get("userId")
-	userId, signedIn := userIdInterface.(string)
-	var user *models.User
-	var ownerId primitive.ObjectID
-	if signedIn {
-		ownerId = utils.StringToObjectID(userId)
-		user = db.GetUserById(userId)
-	} else {
-		ownerId = primitive.NilObjectID
-	}
+	userInterface, _ := c.Get("authUser")
+	user := userInterface.(*models.User)
+	ownerId := user.Id
 
 	// Construct event object
 	numResponses := 0
@@ -131,13 +121,7 @@ func createEvent(c *gin.Context) {
 
 	// Schedule reminder emails if remindees array is not empty
 	if len(payload.Remindees) > 0 {
-		// Determine owner name
-		var ownerName string
-		if signedIn {
-			ownerName = user.FirstName
-		} else {
-			ownerName = "Somebody"
-		}
+		ownerName := user.FirstName
 
 		// Schedule email reminders for each of the remindees' emails
 		remindees := make([]models.Remindee, 0)
@@ -155,39 +139,12 @@ func createEvent(c *gin.Context) {
 
 	attendees := make([]models.Attendee, 0)
 	if payload.Type == models.GROUP {
-
-		if signedIn {
-			// 	// Add event owner to group by default
-			// 	enabledCalendars := make(map[string][]string)
-			// 	for email, calendarAccount := range user.CalendarAccounts {
-			// 		if utils.Coalesce(calendarAccount.Enabled) {
-			// 			enabledCalendars[email] = make([]string, 0)
-			// 			for calendarId, subCalendar := range utils.Coalesce(calendarAccount.SubCalendars) {
-			// 				if utils.Coalesce(subCalendar.Enabled) {
-			// 					enabledCalendars[email] = append(enabledCalendars[email], calendarId)
-			// 				}
-			// 			}
-			// 		}
-			// 	}
-			// 	event.Responses[user.Id.Hex()] = &models.Response{
-			// 		UserId:                  user.Id,
-			// 		UseCalendarAvailability: utils.TruePtr(),
-			// 		EnabledCalendars:        &enabledCalendars,
-			// 	}
-
-			// Add owner as attendee
-			attendees = append(attendees, models.Attendee{Email: user.Email, Declined: utils.FalsePtr(), EventId: event.Id})
-		}
+		// Add owner as attendee
+		attendees = append(attendees, models.Attendee{Email: user.Email, Declined: utils.FalsePtr(), EventId: event.Id})
 
 		// Add attendees and send email
 		if len(payload.Attendees) > 0 {
-			// Determine owner name
-			var ownerName string
-			if signedIn {
-				ownerName = user.FirstName
-			} else {
-				ownerName = "Somebody"
-			}
+			ownerName := user.FirstName
 
 			// Add attendees to attendees array and send invite emails
 			availabilityGroupInviteEmailId := 9
@@ -214,16 +171,8 @@ func createEvent(c *gin.Context) {
 	}
 	insertedId := result.InsertedID.(primitive.ObjectID).Hex()
 
-	// Send slackbot message
-	// var creator string
-	if signedIn {
-		// creator = fmt.Sprintf("%s %s (%s)", user.FirstName, user.LastName, user.Email)
-		user.NumEventsCreated++
-		db.UsersCollection.UpdateOne(context.Background(), bson.M{"_id": ownerId}, bson.M{"$set": user})
-	} else {
-		// creator = "Guest :face_with_open_eyes_and_hand_over_mouth:"
-	}
-	// slackbot.SendEventCreatedMessage(insertedId, creator, event, len(attendees))
+	user.NumEventsCreated++
+	db.UsersCollection.UpdateOne(context.Background(), bson.M{"_id": ownerId}, bson.M{"$set": user})
 
 	c.JSON(http.StatusCreated, gin.H{"eventId": insertedId, "shortId": event.ShortId})
 }
