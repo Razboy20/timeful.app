@@ -8,21 +8,8 @@
         <div class="tw-mr-1 tw-text-lg">
           {{ !isGroup ? "Responses" : "Members" }}
         </div>
-        <div class="tw-font-normal">
-          <template v-if="curRespondents.length === 0">
-            {{
-              isCurTimeslotSelected
-                ? `(${numUsersAvailable}/${respondents.length})`
-                : `(${respondents.length})`
-            }}
-          </template>
-          <template v-else>
-            {{
-              isCurTimeslotSelected
-                ? `(${numCurRespondentsAvailable}/${curRespondents.length})`
-                : `(${curRespondents.length})`
-            }}
-          </template>
+        <div ref="headerCount" class="tw-font-normal">
+          {{ headerCountBase }}
         </div>
         <template v-if="allowExportCsv">
           <v-spacer />
@@ -82,8 +69,8 @@
       <template v-if="isPhone">
         <v-spacer />
         <div
-          class="tw-mt-2 tw-text-sm tw-font-normal tw-text-dark-gray"
-          :class="showIfNeededStar ? 'tw-visible' : 'tw-invisible'"
+          ref="ifNeededStarPhone"
+          class="tw-invisible tw-mt-2 tw-text-sm tw-font-normal tw-text-dark-gray"
         >
           * if needed
         </div>
@@ -164,19 +151,19 @@
               <div class="tw-flex tw-flex-col">
                 <div
                   class="tw-mr-1 tw-transition-all"
-                  :class="respondentClass(user._id)"
+                  :class="respondentBaseClass(user._id)"
+                  :data-respondent-id="user._id"
+                  data-respondent-name
                 >
-                  {{
-                    user.firstName +
-                    " " +
-                    user.lastName +
-                    (respondentIfNeeded(user._id) ? "*" : "")
-                  }}
+                  {{ user.firstName + " " + user.lastName
+                  }}<span :data-ifneeded-id="user._id"></span>
                 </div>
                 <div
                   v-if="isOwner && event.collectEmails"
                   class="email-hover-target tw-flex tw-items-center tw-rounded-sm tw-p-px tw-text-xs tw-text-dark-gray tw-transition-all hover:tw-bg-light-gray"
-                  :class="respondentClass(user._id)"
+                  :class="respondentBaseClass(user._id)"
+                  :data-respondent-id="user._id"
+                  data-respondent-email
                   @mouseover.stop
                   @click.stop="copyEmailToClipboard(user.email)"
                 >
@@ -260,8 +247,8 @@
 
       <div
         v-if="!isPhone && respondents.length > 0"
-        class="tw-col-span-full tw-mb-2 tw-mt-1 tw-text-sm tw-text-dark-gray"
-        :class="showIfNeededStar ? 'tw-visible' : 'tw-invisible'"
+        ref="ifNeededStarDesktop"
+        class="tw-invisible tw-col-span-full tw-mb-2 tw-mt-1 tw-text-sm tw-text-dark-gray"
       >
         * if needed
       </div>
@@ -436,16 +423,15 @@ export default {
 
   components: { UserAvatarContent, EventOptions, OverflowGradient },
 
+  inject: ["curTimeslotState"],
+
   props: {
     eventId: { type: String, required: true },
     event: { type: Object, required: true },
     days: { type: Array, required: true },
     times: { type: Array, required: true },
-    curDate: { type: Date, required: false }, // Date of the current timeslot
     curRespondent: { type: String, required: true },
     curRespondents: { type: Array, required: true },
-    curTimeslot: { type: Object, required: true },
-    curTimeslotAvailableSet: { type: Set, default: null },
     respondents: { type: Array, required: true },
     parsedResponses: { type: Object, required: true },
     isOwner: { type: Boolean, required: true },
@@ -491,6 +477,12 @@ export default {
 
   computed: {
     ...mapState(["authUser"]),
+    curDate() {
+      return this.curTimeslotState.date
+    },
+    curTimeslotAvailableSet() {
+      return this.curTimeslotState.availableSet
+    },
     allowExportCsv() {
       if (this.isGroup || this.isPhone) return false
 
@@ -501,24 +493,11 @@ export default {
     curRespondentsSet() {
       return new Set(this.curRespondents)
     },
-    isCurTimeslotSelected() {
-      return (
-        this.curTimeslot.dayIndex !== -1 && this.curTimeslot.timeIndex !== -1
-      )
-    },
-    numUsersAvailable() {
-      this.curTimeslot
-      if (this.curTimeslotAvailableSet === null) return this.respondents.length
-      return this.curTimeslotAvailableSet.size
-    },
-    numCurRespondentsAvailable() {
-      this.curTimeslot
-      if (this.curTimeslotAvailableSet === null) return this.curRespondents.length
-      let numUsers = 0
-      for (const id of this.curRespondents) {
-        if (this.curTimeslotAvailableSet.has(id)) numUsers++
+    headerCountBase() {
+      if (this.curRespondents.length === 0) {
+        return `(${this.respondents.length})`
       }
-      return numUsers
+      return `(${this.curRespondents.length})`
     },
     pendingUsers() {
       if (!this.isGroup) return []
@@ -533,18 +512,6 @@ export default {
         }
         return false
       })
-    },
-    showIfNeededStar() {
-      if (this.hideIfNeeded) {
-        return false
-      }
-
-      for (const user of this.respondents) {
-        if (this.respondentIfNeeded(user._id)) {
-          return true
-        }
-      }
-      return false
     },
     isPhone() {
       return isPhone(this.$vuetify)
@@ -591,38 +558,88 @@ export default {
       e.stopImmediatePropagation()
       this.$emit("clickRespondent", e, userId)
     },
-    /** Returns the class of the given respondent */
-    respondentClass(id) {
+    respondentBaseClass(id) {
       const c = []
-      if (/*this.curRespondent == id ||*/ this.curRespondentsSet.has(id)) {
-        // c.push("tw-font-bold")
+      if (this.curRespondentsSet.has(id)) {
+        // selected respondent — no extra class
       } else if (this.curRespondents.length > 0) {
-        c.push("tw-text-gray")
-      }
-
-      if (
-        (this.curRespondentsSet.has(id) || this.curRespondents.length === 0) &&
-        this.respondentIfNeeded(id)
-      ) {
-        c.push("tw-bg-yellow")
-      }
-
-      const isAvailable =
-        this.curTimeslotAvailableSet === null ||
-        this.curTimeslotAvailableSet.has(id)
-      if (!isAvailable) {
-        c.push("tw-line-through")
         c.push("tw-text-gray")
       }
       return c
     },
-    /** Returns whether the respondent has "ifNeeded" availability for the current timeslot */
-    respondentIfNeeded(id) {
-      if (!this.curDate || this.hideIfNeeded) return false
+    updateHoverFeedback() {
+      const availSet = this.curTimeslotAvailableSet
+      const hasHover = availSet !== null
+      const curDate = this.curDate
 
-      return Boolean(
-        this.parsedResponses[id]?.ifNeeded?.has(this.curDate.getTime())
-      )
+      // Update respondent name/email elements
+      const nameEls = this.$el.querySelectorAll("[data-respondent-name]")
+      const emailEls = this.$el.querySelectorAll("[data-respondent-email]")
+      let showStar = false
+
+      for (const el of nameEls) {
+        const id = el.dataset.respondentId
+        const isAvailable = !hasHover || availSet.has(id)
+        const ifNeeded =
+          curDate &&
+          !this.hideIfNeeded &&
+          Boolean(
+            this.parsedResponses[id]?.ifNeeded?.has(curDate.getTime())
+          )
+        const showBg =
+          ifNeeded &&
+          (this.curRespondentsSet.has(id) ||
+            this.curRespondents.length === 0)
+
+        el.classList.toggle("tw-line-through", !isAvailable)
+        el.classList.toggle("tw-text-gray", !isAvailable)
+        el.classList.toggle("tw-bg-yellow", showBg)
+
+        if (ifNeeded) showStar = true
+
+        const ifNeededSpan = el.querySelector(`[data-ifneeded-id="${id}"]`)
+        if (ifNeededSpan) {
+          ifNeededSpan.textContent = ifNeeded ? "*" : ""
+        }
+      }
+
+      for (const el of emailEls) {
+        const id = el.dataset.respondentId
+        const isAvailable = !hasHover || availSet.has(id)
+        el.classList.toggle("tw-line-through", !isAvailable)
+        el.classList.toggle("tw-text-gray", !isAvailable)
+      }
+
+      // Update header count
+      const headerEl = this.$refs.headerCount
+      if (headerEl) {
+        if (hasHover) {
+          if (this.curRespondents.length === 0) {
+            headerEl.textContent = `(${availSet.size}/${this.respondents.length})`
+          } else {
+            let numAvail = 0
+            for (const id of this.curRespondents) {
+              if (availSet.has(id)) numAvail++
+            }
+            headerEl.textContent = `(${numAvail}/${this.curRespondents.length})`
+          }
+        } else {
+          headerEl.textContent = this.headerCountBase
+        }
+      }
+
+      // Update "* if needed" star visibility
+      const phoneStarEl = this.$refs.ifNeededStarPhone
+      const desktopStarEl = this.$refs.ifNeededStarDesktop
+      const starVisible = showStar && !this.hideIfNeeded
+      if (phoneStarEl) {
+        phoneStarEl.classList.toggle("tw-visible", starVisible)
+        phoneStarEl.classList.toggle("tw-invisible", !starVisible)
+      }
+      if (desktopStarEl) {
+        desktopStarEl.classList.toggle("tw-visible", starVisible)
+        desktopStarEl.classList.toggle("tw-invisible", !starVisible)
+      }
     },
     /** Returns whether the current respondent is selected (for subset avail) */
     respondentSelected(id) {
@@ -835,6 +852,12 @@ export default {
 
         this.oldCurRespondents = [...this.curRespondents]
       },
+    },
+    curTimeslotAvailableSet() {
+      this.updateHoverFeedback()
+    },
+    curDate() {
+      this.updateHoverFeedback()
     },
   },
 }

@@ -1,6 +1,6 @@
 <template>
   <span>
-    <Tooltip :content="tooltipContent">
+    <Tooltip ref="tooltip">
       <div class="tw-select-none tw-py-4" style="-webkit-touch-callout: none">
         <div class="tw-flex tw-flex-col sm:tw-flex-row">
           <div
@@ -51,9 +51,10 @@
                     v-for="(day, i) in monthDays"
                     :key="day.time"
                     class="timeslot tw-aspect-square tw-p-2 tw-text-sm sm:tw-text-base"
-                    :class="dayTimeslotClassStyle[i].class"
-                    :style="dayTimeslotClassStyle[i].style"
-                    v-on="dayTimeslotVon[i]"
+                    :class="frozenDayTimeslotStyles[i]?.class"
+                    :style="frozenDayTimeslotStyles[i]?.style"
+                    :data-day-idx="i"
+                    v-on="frozenDayTimeslotVon[i]"
                   >
                     {{ day.date }}
                   </div>
@@ -246,14 +247,15 @@
                               <div
                                 class="timeslot"
                                 :class="
-                                  timeslotClassStyle[d * times.length + t]
+                                  frozenTimeslotStyles[d * times.length + t]
                                     ?.class
                                 "
                                 :style="
-                                  timeslotClassStyle[d * times.length + t]
+                                  frozenTimeslotStyles[d * times.length + t]
                                     ?.style
                                 "
-                                v-on="timeslotVon[d * times.length + t]"
+                                :data-ts-idx="d * times.length + t"
+                                v-on="frozenTimeslotVon[d * times.length + t]"
                               ></div>
                             </div>
 
@@ -271,21 +273,26 @@
                                 <div
                                   class="timeslot"
                                   :class="
-                                    timeslotClassStyle[
+                                    frozenTimeslotStyles[
                                       d * times.length +
                                         t +
                                         splitTimes[0].length
                                     ]?.class
                                   "
                                   :style="
-                                    timeslotClassStyle[
+                                    frozenTimeslotStyles[
                                       d * times.length +
                                         t +
                                         splitTimes[0].length
                                     ]?.style
                                   "
+                                  :data-ts-idx="
+                                    d * times.length +
+                                      t +
+                                      splitTimes[0].length
+                                  "
                                   v-on="
-                                    timeslotVon[
+                                    frozenTimeslotVon[
                                       d * times.length +
                                         t +
                                         splitTimes[0].length
@@ -798,11 +805,8 @@
                   :eventId="event._id"
                   :days="allDays"
                   :times="times"
-                  :curDate="getDateFromRowCol(curTimeslot.row, curTimeslot.col)"
                   :curRespondent="curRespondent"
                   :curRespondents="curRespondents"
-                  :curTimeslot="curTimeslot"
-                  :curTimeslotAvailableSet="curTimeslotAvailableSet"
                   :respondents="respondents"
                   :parsedResponses="parsedResponses"
                   :isOwner="isOwner"
@@ -918,11 +922,8 @@
                   :eventId="event._id"
                   :days="allDays"
                   :times="times"
-                  :curDate="getDateFromRowCol(curTimeslot.row, curTimeslot.col)"
                   :curRespondent="curRespondent"
                   :curRespondents="curRespondents"
-                  :curTimeslot="curTimeslot"
-                  :curTimeslotAvailableSet="curTimeslotAvailableSet"
                   :respondents="respondents"
                   :parsedResponses="parsedResponses"
                   :isOwner="isOwner"
@@ -975,6 +976,16 @@
 .break {
   flex-basis: 100%;
   height: 0;
+}
+
+.timeslot.timeslot-active {
+  border: 1px dashed black !important;
+  z-index: 10;
+}
+
+.timeslot-day-active {
+  outline: 2px dashed black;
+  z-index: 10;
 }
 </style>
 
@@ -1043,6 +1054,7 @@ import AlertText from "../AlertText.vue"
 import Tooltip from "../Tooltip.vue"
 import ColorLegend from "./ColorLegend.vue"
 
+import Vue from "vue"
 import dayjs from "dayjs"
 import ObjectID from "bson-objectid"
 import utcPlugin from "dayjs/plugin/utc"
@@ -1056,6 +1068,19 @@ dayjs.extend(timezonePlugin)
 
 export default {
   name: "ScheduleOverlap",
+  beforeCreate() {
+    // Vue.observable container for hover state. The object reference never
+    // changes — only internal properties do — so passing it as a prop to child
+    // components does NOT invalidate the parent's render watcher on hover.
+    this.curTimeslotState = Vue.observable({
+      timeslot: { row: -1, col: -1 },
+      date: null,
+      availableSet: null,
+    })
+  },
+  provide() {
+    return { curTimeslotState: this.curTimeslotState }
+  },
   props: {
     event: { type: Object, required: true },
     fromEditEvent: { type: Boolean, default: false },
@@ -1104,9 +1129,7 @@ export default {
       availabilityAnimEnabled: false, // Whether to animate timeslots changing colors
       maxAnimTime: 1200, // Max amount of time for availability animation
       unsavedChanges: false, // If there are unsaved availability changes
-      curTimeslot: { row: -1, col: -1 }, // The currently highlighted timeslot
       timeslotSelected: false, // Whether a timeslot is selected (used to persist selection on desktop)
-      curTimeslotAvailableSet: null, // Set of user IDs available for current timeslot (null = all)
       curRespondent: "", // Id of the active respondent (set on hover)
       curRespondents: [], // Id of currently selected respondents (set on click)
       sharedCalendarAccounts: {}, // The user's calendar accounts for changing calendar options for groups
@@ -1114,7 +1137,6 @@ export default {
       parsedResponsesCache: new Map(), // Cache for parsed availability/ifNeeded Sets
       loadingResponses: { loading: false, lastFetched: new Date().getTime() }, // Whether we're currently fetching the responses
       responsesFormatted: new Map(), // Map where date/time is mapped to the people that are available then
-      tooltipContent: "", // The content of the tooltip
 
       /* Sign up form */
       signUpBlocksByDay: [], // The current event's sign up blocks by day
@@ -1211,10 +1233,35 @@ export default {
         "nov",
         "dec",
       ],
+
+      // Frozen copies of computed arrays to avoid Vue 2 dep-tracking overhead.
+      // Vue 2's computedGetter calls watcher.depend() on EVERY access, iterating
+      // all deps of the computed. In a v-for with 672 cells, this means ~30,000+
+      // addDep calls per render. Frozen data props reduce this to ~672 (1 dep each).
+      frozenTimeslotStyles: [],
+      frozenDayTimeslotStyles: [],
+      frozenTimeslotVon: [],
+      frozenDayTimeslotVon: [],
     }
   },
   computed: {
     ...mapState(["authUser", "overlayAvailabilitiesEnabled"]),
+    curTimeslot: {
+      get() {
+        return this.curTimeslotState.timeslot
+      },
+      set(val) {
+        this.curTimeslotState.timeslot = val
+      },
+    },
+    curTimeslotAvailableSet: {
+      get() {
+        return this.curTimeslotState.availableSet
+      },
+      set(val) {
+        this.curTimeslotState.availableSet = val
+      },
+    },
     /** Returns the width of the right side of the calendar */
     rightSideWidth() {
       if (this.isPhone) return "100%"
@@ -2115,6 +2162,36 @@ export default {
       }
       return classStyles
     },
+    activeTimeslotIndex() {
+      const { row, col } = this.curTimeslot
+      if (row < 0 || col < 0) return -1
+      if (
+        !(
+          this.respondents.length > 0 ||
+          this.editing ||
+          this.state === this.states.SET_SPECIFIC_TIMES
+        )
+      )
+        return -1
+      const date = this.getDateFromRowCol(row, col)
+      if (!date) return -1
+      return col * this.times.length + row
+    },
+    activeDayTimeslotIndex() {
+      const { row, col } = this.curTimeslot
+      if (row < 0 || col < 0) return -1
+      if (
+        !(
+          this.respondents.length > 0 ||
+          this.state === this.states.EDIT_AVAILABILITY
+        )
+      )
+        return -1
+      const i = row * 7 + col
+      const date = this.monthDays[i]?.dateObject
+      if (!date || !this.monthDayIncluded.get(date.getTime())) return -1
+      return i
+    },
     timeslotVon() {
       const vons = []
       for (let d = 0; d < this.days.length; ++d) {
@@ -2570,13 +2647,14 @@ export default {
 
       // Update current timeslot (the timeslot that has a dotted border around it)
       this.curTimeslot = { row, col }
+      this.curTimeslotState.date = this.getDateFromRowCol(row, col)
 
       if (this.state === this.states.EDIT_AVAILABILITY || this.curRespondent) {
         // Don't show availability when editing or when respondent is selected
         return
       }
 
-      const date = this.getDateFromRowCol(row, col)
+      const date = this.curTimeslotState.date
       if (!date) return
 
       this.curTimeslotAvailableSet =
@@ -2996,62 +3074,48 @@ export default {
       classStyle.style.height = `${this.timeslotHeight}px`
 
       // Border style
-      if (
-        (this.respondents.length > 0 ||
-          this.editing ||
-          this.state === this.states.SET_SPECIFIC_TIMES) &&
-        this.curTimeslot.row === row &&
-        this.curTimeslot.col === col &&
-        !isDisabled
-      ) {
-        // Dashed border for currently selected timeslot
-        classStyle.class +=
-          "tw-border tw-border-dashed tw-border-black tw-z-10 "
-      } else {
-        // Normal border
-        if (date) {
-          const localDate = new Date(
-            date.getTime() - this.timezoneOffset * 60 * 1000
-          )
-          const fractionalTime = localDate.getMinutes()
-          if (fractionalTime === 0) {
-            classStyle.class += "tw-border-t "
-          } else if (fractionalTime === 30) {
-            classStyle.class += "tw-border-t "
-            classStyle.style.borderTopStyle = "dashed"
-          }
-        }
-
-        classStyle.class += "tw-border-r "
-        if (col === 0 || !this.isColConsecutive(col))
-          classStyle.class += "tw-border-l tw-border-l-gray "
-        if (col === this.days.length - 1 || !this.isColConsecutive(col + 1))
-          classStyle.class += "tw-border-r-gray "
-        if (isFirstSplit && row === 0)
-          classStyle.class += "tw-border-t tw-border-t-gray "
-        if (!isFirstSplit && row === this.splitTimes[0].length)
-          classStyle.class += "tw-border-t tw-border-t-gray "
-        if (isFirstSplit && row === this.splitTimes[0].length - 1)
-          classStyle.class += "tw-border-b tw-border-b-gray "
-        if (
-          !isFirstSplit &&
-          row === this.splitTimes[0].length + this.splitTimes[1].length - 1
+      if (date) {
+        const localDate = new Date(
+          date.getTime() - this.timezoneOffset * 60 * 1000
         )
-          classStyle.class += "tw-border-b tw-border-b-gray "
-
-        const totalRespondents =
-          this.state === this.states.SUBSET_AVAILABILITY
-            ? this.curRespondents.length
-            : this.respondents.length
-        if (
-          this.state === this.states.EDIT_AVAILABILITY ||
-          this.state === this.states.SINGLE_AVAILABILITY ||
-          totalRespondents === 1
-        ) {
-          classStyle.class += "tw-border-[#999999] "
-        } else {
-          classStyle.class += "tw-border-[#DDDDDD99] "
+        const fractionalTime = localDate.getMinutes()
+        if (fractionalTime === 0) {
+          classStyle.class += "tw-border-t "
+        } else if (fractionalTime === 30) {
+          classStyle.class += "tw-border-t "
+          classStyle.style.borderTopStyle = "dashed"
         }
+      }
+
+      classStyle.class += "tw-border-r "
+      if (col === 0 || !this.isColConsecutive(col))
+        classStyle.class += "tw-border-l tw-border-l-gray "
+      if (col === this.days.length - 1 || !this.isColConsecutive(col + 1))
+        classStyle.class += "tw-border-r-gray "
+      if (isFirstSplit && row === 0)
+        classStyle.class += "tw-border-t tw-border-t-gray "
+      if (!isFirstSplit && row === this.splitTimes[0].length)
+        classStyle.class += "tw-border-t tw-border-t-gray "
+      if (isFirstSplit && row === this.splitTimes[0].length - 1)
+        classStyle.class += "tw-border-b tw-border-b-gray "
+      if (
+        !isFirstSplit &&
+        row === this.splitTimes[0].length + this.splitTimes[1].length - 1
+      )
+        classStyle.class += "tw-border-b tw-border-b-gray "
+
+      const totalRespondents =
+        this.state === this.states.SUBSET_AVAILABILITY
+          ? this.curRespondents.length
+          : this.respondents.length
+      if (
+        this.state === this.states.EDIT_AVAILABILITY ||
+        this.state === this.states.SINGLE_AVAILABILITY ||
+        totalRespondents === 1
+      ) {
+        classStyle.class += "tw-border-[#999999] "
+      } else {
+        classStyle.class += "tw-border-[#DDDDDD99] "
       }
 
       // Edit fill color and border color if day is not interactable
@@ -3294,29 +3358,16 @@ export default {
       // }
 
       // Border style
-      if (
-        (this.respondents.length > 0 ||
-          this.state === this.states.EDIT_AVAILABILITY) &&
-        this.curTimeslot.row === row &&
-        this.curTimeslot.col === col &&
-        this.monthDayIncluded.get(date.getTime())
-      ) {
-        // Dashed border for currently selected timeslot
-        classStyle.class +=
-          "tw-outline-2 tw-outline-dashed tw-outline-black tw-z-10 "
-      } else {
-        // Normal border
-        if (col === 0) classStyle.class += "tw-border-l tw-border-l-gray "
-        classStyle.class += "tw-border-r tw-border-r-gray "
-        if (col !== 7 - 1) {
-          classStyle.style.borderRightStyle = "dashed"
-        }
+      if (col === 0) classStyle.class += "tw-border-l tw-border-l-gray "
+      classStyle.class += "tw-border-r tw-border-r-gray "
+      if (col !== 7 - 1) {
+        classStyle.style.borderRightStyle = "dashed"
+      }
 
-        if (row === 0) classStyle.class += "tw-border-t tw-border-t-gray "
-        classStyle.class += "tw-border-b tw-border-b-gray "
-        if (row !== Math.floor(this.monthDays.length / 7)) {
-          classStyle.style.borderBottomStyle = "dashed"
-        }
+      if (row === 0) classStyle.class += "tw-border-t tw-border-t-gray "
+      classStyle.class += "tw-border-b tw-border-b-gray "
+      if (row !== Math.floor(this.monthDays.length / 7)) {
+        classStyle.style.borderBottomStyle = "dashed"
       }
 
       return classStyle
@@ -3373,17 +3424,17 @@ export default {
                   } else {
                     dateFormat = "ddd"
                   }
-                  this.tooltipContent = `${startDate.format(
-                    dateFormat
-                  )} ${startDate.format(timeFormat)} to ${endDate.format(
-                    timeFormat
-                  )}`
+                  this.$refs.tooltip?.setContent(
+                    `${startDate.format(dateFormat)} ${startDate.format(
+                      timeFormat
+                    )} to ${endDate.format(timeFormat)}`
+                  )
                 }
               }
             }
           },
           mouseleave: () => {
-            this.tooltipContent = ""
+            this.$refs.tooltip?.setContent("")
           },
         }
       }
@@ -3395,6 +3446,7 @@ export default {
 
       this.curTimeslotAvailableSet = null
       this.curTimeslot = { row: -1, col: -1 }
+      this.curTimeslotState.date = null
 
       // End drag if mouse left time grid
       this.endDrag()
@@ -4460,11 +4512,90 @@ export default {
         this.state = this.states.SET_SPECIFIC_TIMES
       }
     },
+    timeslotClassStyle: {
+      immediate: true,
+      handler(val) {
+        this.frozenTimeslotStyles = Object.freeze(val)
+      },
+    },
+    dayTimeslotClassStyle: {
+      immediate: true,
+      handler(val) {
+        this.frozenDayTimeslotStyles = Object.freeze(val)
+      },
+    },
+    timeslotVon: {
+      immediate: true,
+      handler(val) {
+        this.frozenTimeslotVon = Object.freeze(val)
+      },
+    },
+    dayTimeslotVon: {
+      immediate: true,
+      handler(val) {
+        this.frozenDayTimeslotVon = Object.freeze(val)
+      },
+    },
+    activeTimeslotIndex(newIdx) {
+      if (this.$_activeEl) {
+        this.$_activeEl.classList.remove("timeslot-active")
+        this.$_activeEl = null
+      }
+      if (newIdx >= 0) {
+        const el = this.$el.querySelector(`[data-ts-idx="${newIdx}"]`)
+        if (el) {
+          el.classList.add("timeslot-active")
+          this.$_activeEl = el
+        }
+      }
+    },
+    activeDayTimeslotIndex(newIdx) {
+      if (this.$_activeDayEl) {
+        this.$_activeDayEl.classList.remove("timeslot-day-active")
+        this.$_activeDayEl = null
+      }
+      if (newIdx >= 0) {
+        const el = this.$el.querySelector(`[data-day-idx="${newIdx}"]`)
+        if (el) {
+          el.classList.add("timeslot-day-active")
+          this.$_activeDayEl = el
+        }
+      }
+    },
   },
   created() {
     this.resetCurUserAvailability()
 
     addEventListener("click", this.deselectRespondents)
+
+    // Non-reactive refs for active timeslot DOM manipulation
+    this.$_activeEl = null
+    this.$_activeDayEl = null
+  },
+  updated() {
+    // Re-apply active indicator if DOM elements were replaced by a grid re-render
+    if (this.$_activeEl && !this.$_activeEl.isConnected) {
+      this.$_activeEl = null
+      const idx = this.activeTimeslotIndex
+      if (idx >= 0) {
+        const el = this.$el.querySelector(`[data-ts-idx="${idx}"]`)
+        if (el) {
+          el.classList.add("timeslot-active")
+          this.$_activeEl = el
+        }
+      }
+    }
+    if (this.$_activeDayEl && !this.$_activeDayEl.isConnected) {
+      this.$_activeDayEl = null
+      const idx = this.activeDayTimeslotIndex
+      if (idx >= 0) {
+        const el = this.$el.querySelector(`[data-day-idx="${idx}"]`)
+        if (el) {
+          el.classList.add("timeslot-day-active")
+          this.$_activeDayEl = el
+        }
+      }
+    }
   },
   mounted() {
     // Get query parameters from URL

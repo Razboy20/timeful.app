@@ -2,7 +2,7 @@
   <div class="tw-relative" ref="tooltipTrigger">
     <slot></slot>
     <div
-      v-if="isVisible && content"
+      v-if="isVisible && activeContent"
       class="tw-pointer-events-none tw-fixed tw-z-50 tw-rounded-lg tw-bg-dark-gray tw-px-1.5 tw-py-1 tw-text-xs tw-text-white tw-shadow-lg tw-transition-opacity tw-duration-200"
       :style="{
         left: `${position.x}px`,
@@ -10,7 +10,7 @@
         transform: 'translate(-50%, -50%)',
       }"
     >
-      {{ content }}
+      {{ activeContent }}
     </div>
   </div>
 </template>
@@ -29,20 +29,23 @@ export default {
       position: { x: 0, y: 0 },
       isVisible: false,
       showTimeout: null,
+      internalContent: "",
     }
   },
+  computed: {
+    activeContent() {
+      return this.internalContent || this.content
+    },
+  },
   watch: {
-    content: {
+    activeContent: {
       handler(newContent) {
-        // Clear any existing timeout
         if (this.showTimeout) {
           clearTimeout(this.showTimeout)
         }
 
-        // Hide tooltip immediately when content changes
         this.isVisible = false
 
-        // If there's new content, set a timeout to show it
         if (newContent) {
           this.showTimeout = setTimeout(() => {
             this.isVisible = true
@@ -53,6 +56,9 @@ export default {
     },
   },
   methods: {
+    setContent(text) {
+      this.internalContent = text
+    },
     handleMouseMove(e) {
       this.position = {
         x: e.clientX,
@@ -60,7 +66,7 @@ export default {
       }
     },
     handleMouseEnter() {
-      if (this.content) {
+      if (this.activeContent) {
         this.isVisible = true
       }
     },
