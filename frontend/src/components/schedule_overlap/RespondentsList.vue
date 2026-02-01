@@ -11,7 +11,7 @@
         <div ref="headerCount" class="tw-font-normal">
           {{ headerCountBase }}
         </div>
-        <template v-if="allowExportCsv">
+        <template v-if="showMenu">
           <v-spacer />
           <v-menu right offset-x>
             <template v-slot:activator="{ on, attrs }">
@@ -20,7 +20,11 @@
               >
             </template>
             <v-list class="tw-py-1" dense>
-              <v-dialog v-model="exportCsvDialog.visible" width="400">
+              <v-dialog
+                v-if="allowExportCsv"
+                v-model="exportCsvDialog.visible"
+                width="400"
+              >
                 <template v-slot:activator="{ on, attrs }">
                   <v-list-item
                     id="export-csv-btn"
@@ -28,7 +32,10 @@
                     v-bind="attrs"
                     @click="trackExportCsvClick"
                   >
-                    <v-list-item-title>Export CSV</v-list-item-title>
+                    <v-list-item-title class="tw-flex tw-items-center">
+                      <v-icon small class="tw-mr-2">mdi-file-export</v-icon>
+                      Export CSV
+                    </v-list-item-title>
                   </v-list-item>
                 </template>
                 <v-card>
@@ -62,6 +69,24 @@
                   </v-card-actions>
                 </v-card>
               </v-dialog>
+              <v-list-item
+                v-if="curRespondents.length > 0"
+                @click="copyLinkToSelectedResponses"
+              >
+                <v-list-item-title class="tw-flex tw-items-center">
+                  <v-icon small class="tw-mr-2">mdi-link</v-icon>
+                  Copy link to selected
+                </v-list-item-title>
+              </v-list-item>
+              <v-list-item
+                v-if="curRespondents.length > 0"
+                @click="$emit('deselectAll')"
+              >
+                <v-list-item-title class="tw-flex tw-items-center">
+                  <v-icon small class="tw-mr-2">mdi-close</v-icon>
+                  Deselect all
+                </v-list-item-title>
+              </v-list-item>
             </v-list>
           </v-menu>
         </template>
@@ -490,6 +515,9 @@ export default {
         ? this.isOwner && this.respondents.length > 0
         : this.respondents.length > 0
     },
+    showMenu() {
+      return this.allowExportCsv || this.curRespondents.length > 0
+    },
     curRespondentsSet() {
       return new Set(this.curRespondents)
     },
@@ -797,7 +825,18 @@ export default {
         this.desktopMaxHeight = 0
       }
     },
-    /** Copies the given email to the clipboard */
+    async copyLinkToSelectedResponses() {
+      try {
+        const url = new URL(window.location.href)
+        url.search = ""
+        url.hash = "selected=" + this.curRespondents.join(",")
+        await navigator.clipboard.writeText(url.toString())
+        this.showInfo("Link copied to clipboard!")
+      } catch (err) {
+        console.error("Failed to copy link: ", err)
+        this.showError("Failed to copy link.")
+      }
+    },
     async copyEmailToClipboard(email) {
       try {
         await navigator.clipboard.writeText(email)

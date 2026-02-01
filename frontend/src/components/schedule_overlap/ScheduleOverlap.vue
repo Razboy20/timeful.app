@@ -827,6 +827,7 @@
                   @clickRespondent="clickRespondent"
                   @editGuestAvailability="editGuestAvailability"
                   @refreshEvent="refreshEvent"
+                  @deselectAll="deselectRespondents"
                 />
               </template>
             </template>
@@ -943,6 +944,7 @@
                   @clickRespondent="clickRespondent"
                   @editGuestAvailability="editGuestAvailability"
                   @refreshEvent="refreshEvent"
+                  @deselectAll="deselectRespondents"
                 />
               </div>
             </div>
@@ -4598,7 +4600,7 @@ export default {
   created() {
     this.resetCurUserAvailability()
 
-    addEventListener("click", this.deselectRespondents)
+    // addEventListener("click", this.deselectRespondents)
 
     // Non-reactive refs for active timeslot DOM manipulation
     this.$_activeEl = null
@@ -4652,6 +4654,23 @@ export default {
       this.state = "best_times"
     } else {
       this.state = "heatmap"
+    }
+
+    // Pre-select respondents from hash fragment (e.g. #selected=id1,id2,id3)
+    const hash = window.location.hash
+    if (hash.startsWith("#selected=")) {
+      const ids = hash.slice("#selected=".length).split(",").filter(Boolean)
+      const respondentIds = new Set(this.respondents.map((r) => r._id))
+      const validIds = ids.filter((id) => respondentIds.has(id))
+      if (validIds.length > 0) {
+        this.curRespondents = validIds
+        this.state = this.states.SUBSET_AVAILABILITY
+      }
+      window.history.replaceState(
+        {},
+        document.title,
+        window.location.pathname + window.location.search
+      )
     }
 
     // Set calendar options defaults
