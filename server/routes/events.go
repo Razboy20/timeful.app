@@ -1464,8 +1464,13 @@ func importEvent(c *gin.Context) {
 	// Build a name lookup from the event's responses map (remote authenticated users)
 	remoteNameMap := make(map[string]string)
 	for key, resp := range remoteEvent.ResponsesMap {
-		if resp != nil && resp.User != nil && resp.User.FirstName != "" {
-			remoteNameMap[key] = resp.User.FirstName
+		if resp == nil || resp.User == nil {
+			continue
+		}
+
+		fullName := strings.TrimSpace(fmt.Sprintf("%s %s", resp.User.FirstName, resp.User.LastName))
+		if fullName != "" {
+			remoteNameMap[key] = fullName
 		}
 	}
 
