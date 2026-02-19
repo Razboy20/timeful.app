@@ -438,6 +438,8 @@
 
 <script>
 import { _delete, getLocale, isPhone } from "@/utils"
+import { dateToDowDate } from "@/utils/date_utils"
+import { eventTypes } from "@/constants"
 import UserAvatarContent from "../UserAvatarContent.vue"
 import { mapState, mapActions } from "vuex"
 import EventOptions from "./EventOptions.vue"
@@ -706,6 +708,13 @@ export default {
     },
     getDateString(date) {
       const locale = getLocale()
+
+      if (
+        this.event.type === eventTypes.DOW ||
+        this.event.type === eventTypes.GROUP
+      ) {
+        date = dateToDowDate(this.event.dates, date, 0, true)
+      }
 
       if (this.event.daysOnly) {
         return date.toISOString().substring(0, 10)
