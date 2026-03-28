@@ -15,7 +15,7 @@ buildNpmPackage {
 
   nodejs = nodejs_20;
 
-  npmDepsHash = "sha256-vgVGAWwv0AvRlDgqYKRQ/uRXlr6XXdlgwf2F+b8Apeo=";
+  npmDepsHash = "sha256-UXctkwhyBjsxKPYJ8lKgO7kyT5JwIpA20O790XU1TOQ=";
 
   env = {
     VUE_APP_GOOGLE_CLIENT_ID = googleClientId;

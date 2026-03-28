@@ -16,7 +16,7 @@
             <div v-if="authUser" class="tw-ml-2">
               <AuthUserMenu />
             </div>
-            <v-btn v-else text @click="signIn">Sign in</v-btn>
+            <v-btn v-else text :to="{ name: 'sign-in' }">Sign in</v-btn>
           </LandingPageHeader>
         </div>
       </div>
@@ -66,7 +66,7 @@
               <span
                 >Timeful allows you to autofill your availability from Google
                 Calendar,<br class="tw-hidden sm:tw-block" />
-                Outlook, and Apple Calendar</span
+                Outlook, Apple Calendar, or an ICS feed URL.</span
               > </v-tooltip
             >.
           </div>
@@ -250,7 +250,11 @@
     <Footer />
 
     <!-- Sign in dialog -->
-    <SignInDialog v-model="signInDialog" @signIn="_signIn" />
+    <SignInDialog
+      v-model="signInDialog"
+      @signIn="_signIn"
+      @emailSignIn="_emailSignIn"
+    />
 
     <!-- Add the dialog component -->
     <HowItWorksDialog
@@ -289,7 +293,7 @@ import HowItWorksDialog from "@/components/HowItWorksDialog.vue"
 import { vueVimeoPlayer } from "vue-vimeo-player"
 import Footer from "@/components/Footer.vue"
 import PronunciationMenu from "@/components/PronunciationMenu.vue"
-import { mapState } from "vuex"
+import { mapState, mapMutations } from "vuex"
 import AuthUserMenu from "@/components/AuthUserMenu.vue"
 
 export default {
@@ -337,7 +341,7 @@ export default {
       {
         question: "What calendars does Timeful integrate with?",
         answer:
-          "Timeful allows you to autofill your availability from your Google Calendar, Outlook, and Apple Calendar. We are working on adding more calendar types soon!",
+          "Timeful allows you to autofill your availability from your Google Calendar, Outlook, Apple Calendar, or an ICS feed URL. We are working on adding more calendar types soon!",
       },
       {
         question: "Is calendar access required in order to use Timeful?",
@@ -436,6 +440,7 @@ export default {
   },
 
   methods: {
+    ...mapMutations(["setAuthUser"]),
     loadRiveAnimation() {
       // if (!this.rive) {
       //   this.rive = new Rive({
@@ -465,8 +470,17 @@ export default {
         signInOutlook({ state: null, selectAccount: true })
       }
     },
+    _emailSignIn(user) {
+      this.setAuthUser(user)
+      this.$posthog?.identify(user._id, {
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      })
+      this.$router.replace({ name: "home" })
+    },
     signIn() {
-      this.signInDialog = true
+      this.$router.push({ name: "sign-in" })
     },
     openHowItWorksDialog() {
       this.showHowItWorksDialog = true

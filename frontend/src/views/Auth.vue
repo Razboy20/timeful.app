@@ -2,11 +2,15 @@
 
 <script>
 import { get, post } from "@/utils"
-import { mapMutations, mapActions } from "vuex"
+import { mapMutations, mapActions, mapState } from "vuex"
 import { authTypes, calendarTypes } from "@/constants"
 
 export default {
   name: "Auth",
+
+  computed: {
+    ...mapState(["authUser"]),
+  },
 
   methods: {
     ...mapMutations(["setAuthUser"]),
@@ -128,6 +132,21 @@ export default {
                   contactsPayload: state.payload,
                 },
               })
+            }
+            break
+          case authTypes.UPGRADE:
+            try {
+              const params = JSON.parse(state.upgradeParams)
+              const res = await post("/stripe/create-checkout-session", {
+                priceId: params.priceId,
+                userId: this.authUser._id,
+                isSubscription: params.isSubscription,
+                originUrl: params.originUrl,
+              })
+              window.location.href = res.url
+            } catch (e) {
+              console.error(e)
+              this.$router.replace({ name: "home" })
             }
             break
           default:
